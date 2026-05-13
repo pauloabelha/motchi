@@ -24,6 +24,18 @@
     "recharge_radius": 1.5,
     "empty_grace_steps": 240
   },
+  "actuators": {
+    "motor_units": [
+      {"name": "front_left_hip", "energy_multiplier": 1.0},
+      {"name": "front_left_ankle", "energy_multiplier": 1.0},
+      {"name": "front_right_hip", "energy_multiplier": 1.0},
+      {"name": "front_right_ankle", "energy_multiplier": 1.0},
+      {"name": "back_left_hip", "energy_multiplier": 1.0},
+      {"name": "back_left_ankle", "energy_multiplier": 1.0},
+      {"name": "back_right_hip", "energy_multiplier": 1.0},
+      {"name": "back_right_ankle", "energy_multiplier": 1.0}
+    ]
+  },
   "food": {
     "hunger_capacity": 100.0,
     "hunger_rate": 0.06,

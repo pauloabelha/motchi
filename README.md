@@ -167,7 +167,7 @@ hunger_drive = hunger_fraction * food_signal_strength
 
 For `RandomAnt`, these signals are observed and logged but do not bias movement. Food and recharge can still be fulfilled randomly if the ant happens to reach them. This is not reinforcement learning; it is the first separation between body drives and action policy.
 
-Action policies return `ActionCommand` objects rather than raw arrays. Each command contains its proposed motor output and full-strength energy cost. `BaseAnt` then scales the executed motor output based on available energy, so low energy produces weak actions and zero energy produces no action.
+Action policies return `ActionCommand` objects rather than raw arrays. A command contains proposed motor output, but not energy cost. Energy cost belongs to the body actuator: `BaseAnt` owns a `MotorActuator`, and the actuator computes spending from the motor command. Its low-level motor units each have an `energy_multiplier`, so a more efficient leg or joint spends less energy for the same command. Low energy produces weak executed actions, and zero energy produces no executed action.
 
 Food appears as small green spheres, about a tenth of the ant's body scale. When the ant torso touches one:
 
@@ -234,5 +234,7 @@ The tests cover:
 - recharge drive increasing with energy depletion
 - food drive increasing with hunger
 - food consumption reducing hunger and restoring energy
-- action command costs
-- smooth low-energy action scaling
+- policy commands staying independent from actuator energy cost
+- actuator-computed energy costs
+- per-motor actuator efficiency
+- smooth low-energy actuator scaling

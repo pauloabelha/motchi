@@ -14,8 +14,4 @@ class RandomAnt(BaseAnt):
 
     def choose_action(self, drives: DriveSnapshot) -> ActionCommand:
         del drives
-        return ActionCommand.from_motor(
-            self.action_space.sample(),
-            self.config.energy,
-            label="random",
-        )
+        return ActionCommand.from_motor(self.action_space.sample(), label="random")

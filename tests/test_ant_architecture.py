@@ -61,7 +61,6 @@ class AntArchitectureTest(unittest.TestCase):
         command = ant.choose_action(drives)
 
         self.assertEqual(command.motor.shape, (8,))
-        self.assertGreater(command.energy_cost, 0.0)
         self.assertEqual(command.label, "random")
         self.assertTrue(np.all(command.motor >= ant.action_space.low))
         self.assertTrue(np.all(command.motor <= ant.action_space.high))

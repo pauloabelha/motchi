@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from motchi.runtime.core_drives import CoreDriveConfig
+from motchi.runtime.actuators import ActuatorConfig
 from motchi.runtime.energy import EnergyConfig
 from motchi.runtime.food import FoodConfig
 
@@ -32,5 +33,6 @@ class AntConfig:
     viewer: ViewerConfig = field(default_factory=ViewerConfig)
     run: RunConfig = field(default_factory=RunConfig)
     energy: EnergyConfig = field(default_factory=EnergyConfig)
+    actuators: ActuatorConfig = field(default_factory=ActuatorConfig.ant_v5_default)
     food: FoodConfig = field(default_factory=FoodConfig)
     drives: CoreDriveConfig = field(default_factory=CoreDriveConfig)

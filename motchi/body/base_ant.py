@@ -11,7 +11,8 @@ import numpy as np
 
 from motchi.body.config import AntConfig
 from motchi.runtime.core_drives import DriveSnapshot, compute_drives
-from motchi.runtime.actions import ActionCommand, execute_action_command
+from motchi.runtime.actions import ActionCommand, ExecutedAction
+from motchi.runtime.actuators import MotorActuator
 from motchi.runtime.energy import EnergyState, spend_or_recharge
 from motchi.runtime.food import (
     FoodItem,
@@ -34,6 +35,7 @@ class BaseAnt(ABC):
         self.energy = EnergyState.full(config.energy)
         self.hunger = HungerState()
         self.foods: list[FoodItem] = default_food_items()
+        self.motor_actuator = MotorActuator(config.energy, config.actuators)
         self.step_count = 0
         self.episode_count = 1
         self.was_in_recharge_zone = True
@@ -61,7 +63,7 @@ class BaseAnt(ABC):
             while self.config.run.max_steps is None or self.step_count < self.config.run.max_steps:
                 drives = self._sense_drives()
                 command = self.choose_action(drives)
-                executed_action = execute_action_command(command, self.energy, self.config.energy)
+                executed_action = self.motor_actuator.execute(command, self.energy)
 
                 observation, reward, terminated, truncated, info_dict = self._env.step(executed_action.motor)
                 del observation, reward, info_dict
@@ -164,7 +166,7 @@ class BaseAnt(ABC):
     def _torso_xy(self) -> np.ndarray:
         return np.asarray(self._env.unwrapped.data.qpos[:2], dtype=np.float64)
 
-    def _update_drives_and_world(self, executed_action) -> tuple[bool, float]:
+    def _update_drives_and_world(self, executed_action: ExecutedAction) -> tuple[bool, float]:
         self.hunger = increase_hunger(self.hunger, self.config.food)
         self.energy, in_recharge_zone, spent = spend_or_recharge(
             self.energy,

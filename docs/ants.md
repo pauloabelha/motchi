@@ -30,19 +30,37 @@ The `drives` snapshot is always computed before action selection. A subclass may
 
 ## Action Commands
 
-Policies do not send raw motor arrays directly. They return an `ActionCommand`:
+Policies propose movement. They do not own body energy economics. A policy returns an `ActionCommand`:
 
 ```python
-ActionCommand.from_motor(motor, energy_config, label="random")
+ActionCommand.from_motor(motor, label="random")
 ```
 
 An action command contains:
 
 - proposed motor output
-- full-strength energy cost
 - a label for telemetry/debugging
 
-`BaseAnt` executes the command through the body energy gate. As energy gets low, motor output is smoothly scaled down. At zero energy, no motor output reaches the body.
+Energy cost is not a policy property. `BaseAnt` owns a `MotorActuator`, and the actuator computes the cost of executing a command from the motor effort. As energy gets low, motor output is smoothly scaled down. At zero energy, no motor output reaches the body.
+
+`MotorActuator` is built from low-level motor units. Each unit has an `energy_multiplier`, so a different leg or joint can be more efficient without changing the policy:
+
+```json
+{
+  "name": "front_left_hip",
+  "energy_multiplier": 0.5
+}
+```
+
+The same action command costs less when it passes through a more efficient actuator unit.
+
+The boundary is:
+
+```text
+Policy        -> proposes ActionCommand
+MotorActuator -> computes per-unit cost and scales execution
+Energy drive  -> spends or replenishes body energy after execution
+```
 
 ## RandomAnt
 
@@ -54,11 +72,7 @@ It ignores its drives and samples random motor actions:
 class RandomAnt(BaseAnt):
     def choose_action(self, drives: DriveSnapshot) -> ActionCommand:
         del drives
-        return ActionCommand.from_motor(
-            self.action_space.sample(),
-            self.config.energy,
-            label="random",
-        )
+        return ActionCommand.from_motor(self.action_space.sample(), label="random")
 ```
 
 Even though the action policy is random, the internal body loop still updates:
@@ -101,6 +115,7 @@ The config is split into:
 - `RunConfig`
 - `EnergyConfig`
 - `FoodConfig`
+- `ActuatorConfig`
 - `CoreDriveConfig`
 - `AntConfig`
 
@@ -110,13 +125,14 @@ Create a new subclass:
 
 ```python
 from motchi.body.base_ant import BaseAnt
+from motchi.runtime.actions import ActionCommand
 from motchi.runtime.core_drives import DriveSnapshot
 
 
 class MyAnt(BaseAnt):
     def choose_action(self, drives: DriveSnapshot):
         # Use drives.recharge_drive, drives.food_drive, or ignore them.
-        return self.action_space.sample()
+        return ActionCommand.from_motor(self.action_space.sample(), label="my_policy")
 ```
 
 This keeps future behavior systems, memory systems, learning policies, and procedural controllers separate from the body’s internal drives.
