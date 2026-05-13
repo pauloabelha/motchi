@@ -1,0 +1,6 @@
+mujoco
+gymnasium[mujoco]
+numpy
+torch
+glfw
+imageio
