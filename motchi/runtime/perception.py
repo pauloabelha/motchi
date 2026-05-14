@@ -8,6 +8,7 @@ import numpy as np
 
 from motchi.runtime.energy import EnergyConfig, EnergyState, distance_to_recharge_xy, is_in_recharge_zone
 from motchi.runtime.food import FoodConfig, FoodItem, HungerState, nearest_available_food
+from motchi.runtime.sensing import SensingConfig, quadratic_detection_strength
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class RechargePerception:
     direction_world: np.ndarray
     direction_body: np.ndarray
     inside_zone: bool
+    detected: bool
 
 
 @dataclass(frozen=True)
@@ -52,8 +54,9 @@ def rotate_world_vector_to_body_xy(vector_xy: np.ndarray, yaw: float) -> np.ndar
 def recharge_perception(
     energy: EnergyState,
     energy_config: EnergyConfig,
+    sensing_config: SensingConfig,
     torso_qpos: np.ndarray,
-    sense_range: float,
+    sensing_energy_scale: float = 1.0,
 ) -> RechargePerception:
     torso_qpos = np.asarray(torso_qpos, dtype=np.float64)
     torso_xy = torso_qpos[:2]
@@ -68,7 +71,12 @@ def recharge_perception(
     direction_body = rotate_world_vector_to_body_xy(direction_world, yaw)
 
     energy_fraction = energy.fraction(energy_config)
-    signal_strength = float(np.clip(1.0 - distance / max(sense_range, 1e-6), 0.0, 1.0))
+    signal_strength = quadratic_detection_strength(
+        distance,
+        sensing_config.recharge_range,
+        sensing_config.detection_threshold,
+        sensing_energy_scale,
+    )
 
     return RechargePerception(
         energy_fraction=energy_fraction,
@@ -78,14 +86,17 @@ def recharge_perception(
         direction_world=direction_world,
         direction_body=direction_body,
         inside_zone=is_in_recharge_zone(torso_xy, energy_config),
+        detected=signal_strength > 0.0,
     )
 
 
 def food_perception(
     hunger: HungerState,
     food_config: FoodConfig,
+    sensing_config: SensingConfig,
     foods: list[FoodItem],
     torso_qpos: np.ndarray,
+    sensing_energy_scale: float = 1.0,
 ) -> FoodPerception:
     torso_qpos = np.asarray(torso_qpos, dtype=np.float64)
     torso_xy = torso_qpos[:2]
@@ -108,7 +119,12 @@ def food_perception(
     direction_world = delta_world / max(distance, 1e-6)
     yaw = yaw_from_quaternion_wxyz(torso_quat)
     direction_body = rotate_world_vector_to_body_xy(direction_world, yaw)
-    signal_strength = float(np.clip(1.0 - distance / max(food_config.food_sense_range, 1e-6), 0.0, 1.0))
+    signal_strength = quadratic_detection_strength(
+        distance,
+        min(food_config.food_sense_range, sensing_config.food_range),
+        sensing_config.detection_threshold,
+        sensing_energy_scale,
+    )
 
     return FoodPerception(
         hunger_fraction=hunger_fraction,

@@ -24,6 +24,7 @@ from motchi.runtime.food import (
 )
 from motchi.runtime.logging import error, info
 from motchi.runtime.perception import food_perception, recharge_perception
+from motchi.runtime.sensing import SensingState, sensing_cost, sensing_scale
 
 
 class BaseAnt(ABC):
@@ -36,6 +37,7 @@ class BaseAnt(ABC):
         self.hunger = HungerState()
         self.foods: list[FoodItem] = default_food_items()
         self.motor_actuator = MotorActuator(config.energy, config.actuators)
+        self.last_sensing = SensingState(energy_cost=0.0, energy_scale=1.0)
         self.step_count = 0
         self.episode_count = 1
         self.was_in_recharge_zone = True
@@ -61,7 +63,7 @@ class BaseAnt(ABC):
 
         try:
             while self.config.run.max_steps is None or self.step_count < self.config.run.max_steps:
-                drives = self._sense_drives()
+                drives = self._sense_drives(spend_energy=True)
                 command = self.choose_action(drives)
                 executed_action = self.motor_actuator.execute(command, self.energy)
 
@@ -71,16 +73,15 @@ class BaseAnt(ABC):
 
                 in_recharge_zone, spent = self._update_drives_and_world(executed_action)
                 self._draw_world_markers()
+                self._add_hud(drives, in_recharge_zone, spent, executed_action.energy_scale)
                 self._log_telemetry(drives, in_recharge_zone, spent, executed_action.energy_scale)
 
                 energy_failed = self.energy.empty_steps >= self.config.energy.empty_grace_steps
-                if energy_failed:
-                    info("Episode reset: energy depleted")
-
                 if terminated or truncated or energy_failed:
+                    reset_reason = self._reset_reason(terminated, truncated, energy_failed)
                     self.episode_count += 1
-                    info(f"Episode reset ({self.episode_count})")
-                    self._reset_episode()
+                    info(f"Episode reset ({self.episode_count}): {reset_reason}")
+                    self._reset_episode(reason=reset_reason)
                     if self.config.run.reset_delay > 0:
                         time.sleep(self.config.run.reset_delay)
 
@@ -100,6 +101,7 @@ class BaseAnt(ABC):
             render_mode="human",
             width=viewer.width,
             height=viewer.height,
+            terminate_when_unhealthy=self.config.environment.terminate_when_unhealthy,
             default_camera_config={
                 "distance": viewer.camera_distance,
                 "elevation": viewer.camera_elevation,
@@ -113,6 +115,7 @@ class BaseAnt(ABC):
 
         info(f"{self.config.name} initialized")
         info(f"Environment: {self.config.env_id}")
+        info(f"Terminate when unhealthy: {self.config.environment.terminate_when_unhealthy}")
         info(f"Observation shape: {obs_space.shape}")
         info(f"Action shape: {action_space.shape}")
         if hasattr(action_space, "low") and hasattr(action_space, "high"):
@@ -134,9 +137,15 @@ class BaseAnt(ABC):
             f"food_energy={self.config.food.food_energy_value:.1f}, "
             f"food_radius={self.config.food.food_radius:.2f}"
         )
+        info(
+            "Active sensing: "
+            f"recharge_range={self.config.sensing.recharge_range:.1f}, "
+            f"food_range={self.config.sensing.food_range:.1f}, "
+            f"threshold={self.config.sensing.detection_threshold:.2f}"
+        )
         info("Rendering active")
 
-    def _reset_episode(self, seed: int | None = None) -> None:
+    def _reset_episode(self, seed: int | None = None, reason: str = "startup") -> None:
         observation, info_dict = self._env.reset(seed=seed)
         del observation, info_dict
         self.energy = EnergyState.full(self.config.energy)
@@ -144,24 +153,55 @@ class BaseAnt(ABC):
         self.foods = default_food_items()
         self.was_in_recharge_zone = True
         self._draw_world_markers()
-        info("Episode reset")
+        drives = self._sense_drives(spend_energy=False)
+        self._add_hud(drives, in_recharge_zone=drives.recharge.inside_zone, spent=0.0, energy_scale=1.0)
+        info(f"Episode reset: {reason}")
         info(f"Energy: {self.energy.value:.1f}/{self.config.energy.capacity:.1f}")
         info(f"Hunger: {self.hunger.value:.1f}/{self.config.food.hunger_capacity:.1f}")
 
-    def _sense_drives(self) -> DriveSnapshot:
+    def _reset_reason(self, terminated: bool, truncated: bool, energy_failed: bool) -> str:
+        reasons: list[str] = []
+        if energy_failed:
+            reasons.append("energy depleted")
+        if terminated:
+            if self.config.environment.terminate_when_unhealthy:
+                reasons.append("environment terminated, likely unhealthy posture")
+            else:
+                reasons.append("environment terminated")
+        if truncated:
+            reasons.append("environment truncated")
+        return ", ".join(reasons) if reasons else "unspecified"
+
+    def _sense_drives(self, spend_energy: bool = False) -> DriveSnapshot:
+        sensing_state = self._sense_environment(spend_energy=spend_energy)
         recharge = recharge_perception(
             self.energy,
             self.config.energy,
+            self.config.sensing,
             self._env.unwrapped.data.qpos,
-            sense_range=self.config.drives.sense_range,
+            sensing_energy_scale=sensing_state.energy_scale,
         )
         food = food_perception(
             self.hunger,
             self.config.food,
+            self.config.sensing,
             self.foods,
             self._env.unwrapped.data.qpos,
+            sensing_energy_scale=sensing_state.energy_scale,
         )
         return compute_drives(recharge, food)
+
+    def _sense_environment(self, spend_energy: bool) -> SensingState:
+        sensed_object_count = 1 + sum(1 for food in self.foods if not food.eaten)
+        requested_cost = sensing_cost(self.config.sensing, sensed_object_count)
+        scale = sensing_scale(self.energy.value, requested_cost)
+        spent = requested_cost * scale if spend_energy else 0.0
+        if spend_energy and spent > 0.0:
+            next_value = float(np.clip(self.energy.value - spent, 0.0, self.config.energy.capacity))
+            empty_steps = self.energy.empty_steps + 1 if next_value <= 0.0 else 0
+            self.energy = EnergyState(value=next_value, empty_steps=empty_steps)
+        self.last_sensing = SensingState(energy_cost=spent, energy_scale=scale)
+        return self.last_sensing
 
     def _torso_xy(self) -> np.ndarray:
         return np.asarray(self._env.unwrapped.data.qpos[:2], dtype=np.float64)
@@ -196,6 +236,50 @@ class BaseAnt(ABC):
     def _draw_world_markers(self) -> None:
         self._add_recharge_marker()
         self._add_food_markers()
+
+    def _status_bar(self, fraction: float, width: int = 12) -> str:
+        fraction = float(np.clip(fraction, 0.0, 1.0))
+        filled = int(round(fraction * width))
+        return "[" + "#" * filled + "." * (width - filled) + "]"
+
+    def _hud_lines(
+        self,
+        drives: DriveSnapshot,
+        in_recharge_zone: bool,
+        spent: float,
+        energy_scale: float,
+    ) -> list[tuple[str, str]]:
+        energy_fraction = self.energy.fraction(self.config.energy)
+        hunger_fraction = self.hunger.fraction(self.config.food)
+        food_left = sum(1 for food in self.foods if not food.eaten)
+
+        return [
+            ("Ant", self.config.name),
+            ("Energy", f"{self._status_bar(energy_fraction)} {self.energy.value:.1f}/{self.config.energy.capacity:.1f}"),
+            ("Hunger", f"{self._status_bar(hunger_fraction)} {self.hunger.value:.1f}/{self.config.food.hunger_capacity:.1f}"),
+            ("Dominant drive", f"{drives.dominant_drive} ({drives.dominant_intensity:.2f})"),
+            ("Recharge drive", f"{drives.recharge_drive:.2f} dist={drives.recharge.distance:.2f} in_zone={in_recharge_zone}"),
+            ("Food drive", f"{drives.food_drive:.2f} dist={drives.food.distance:.2f} left={food_left}"),
+            ("Sensing", f"scale={self.last_sensing.energy_scale:.2f} spent={self.last_sensing.energy_cost:.3f}"),
+            ("Action scale", f"{energy_scale:.2f} spent={spent:.3f}"),
+        ]
+
+    def _add_hud(
+        self,
+        drives: DriveSnapshot,
+        in_recharge_zone: bool,
+        spent: float,
+        energy_scale: float,
+    ) -> None:
+        viewer = self._viewer()
+        if viewer is None:
+            return
+
+        try:
+            for label, value in self._hud_lines(drives, in_recharge_zone, spent, energy_scale):
+                viewer.add_overlay(mujoco.mjtGridPos.mjGRID_TOPRIGHT, label, value)
+        except Exception as exc:
+            error(f"Could not draw HUD overlay: {exc}")
 
     def _viewer(self):
         renderer = self._env.unwrapped.mujoco_renderer
@@ -258,6 +342,8 @@ class BaseAnt(ABC):
                 f"Step {self.step_count}: energy={self.energy.value:.1f}/"
                 f"{self.config.energy.capacity:.1f}, spent={spent:.3f}, "
                 f"action_scale={energy_scale:.2f}, "
+                f"sensing_spent={self.last_sensing.energy_cost:.3f}, "
+                f"sensing_scale={self.last_sensing.energy_scale:.2f}, "
                 f"hunger={self.hunger.value:.1f}/{self.config.food.hunger_capacity:.1f}, "
                 f"in_recharge_zone={in_recharge_zone}, "
                 f"recharge_drive={drives.recharge_drive:.2f}, "

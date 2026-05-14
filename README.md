@@ -136,13 +136,21 @@ python test_ant.py --recharge-x 2.0 --recharge-y 0.0 --recharge-radius 1.0
 RandomAnt always uses random motor actions. Motchi still updates drives:
 
 - energy is spent or recharged
+- sensing spends energy before perception
 - hunger rises
 - food is consumed if touched
 - recharge and food drive intensities are computed
 - telemetry reports the dominant drive
 - action commands are smoothly scaled by available energy
+- the MuJoCo window shows a top-right HUD with energy, hunger, drives, and action scale
 
 The ant class decides whether drives influence motor actions. `RandomAnt` ignores them. Future ants can inherit from `BaseAnt` and use the same drives differently.
+
+Motchi disables Ant-v5's built-in unhealthy-posture termination by default. This prevents random motion from causing frequent visual teleports back to the start pose. Resets still log their cause explicitly, and you can restore Gymnasium's default behavior with:
+
+```bash
+python test_ant.py --terminate-when-unhealthy
+```
 
 Run a random-action drive demo where the recharge region is away from the ant:
 
@@ -168,6 +176,25 @@ hunger_drive = hunger_fraction * food_signal_strength
 For `RandomAnt`, these signals are observed and logged but do not bias movement. Food and recharge can still be fulfilled randomly if the ant happens to reach them. This is not reinforcement learning; it is the first separation between body drives and action policy.
 
 Action policies return `ActionCommand` objects rather than raw arrays. A command contains proposed motor output, but not energy cost. Energy cost belongs to the body actuator: `BaseAnt` owns a `MotorActuator`, and the actuator computes spending from the motor command. Its low-level motor units each have an `energy_multiplier`, so a more efficient leg or joint spends less energy for the same command. Low energy produces weak executed actions, and zero energy produces no executed action.
+
+Sensing is also energy-bound. Before drives are computed, `BaseAnt` spends a small sensing cost. Recharge and food detection use a quadratic distance falloff:
+
+```text
+signal = 1 - (distance / range)^2
+```
+
+Signals below `detection_threshold` are hidden from the ant. If energy is too low to pay the sensing cost, sensing scale drops and perception weakens.
+
+Tune sensing from the command line:
+
+```bash
+python test_ant.py \
+  --sensing-recharge-range 16 \
+  --sensing-food-range 12 \
+  --sensing-threshold 0.05 \
+  --sensing-base-cost 0.01 \
+  --sensing-object-cost 0.002
+```
 
 Food appears as small green spheres, about a tenth of the ant's body scale. When the ant torso touches one:
 
@@ -234,6 +261,11 @@ The tests cover:
 - recharge drive increasing with energy depletion
 - food drive increasing with hunger
 - food consumption reducing hunger and restoring energy
+- MuJoCo HUD lines for per-ant energy/hunger/drive state
+- unhealthy Ant-v5 termination disabled by default
+- reset reason reporting
+- active sensing energy cost
+- quadratic sensing falloff and detection thresholds
 - policy commands staying independent from actuator energy cost
 - actuator-computed energy costs
 - per-motor actuator efficiency

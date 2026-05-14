@@ -7,7 +7,7 @@ import gymnasium as gym
 import numpy as np
 
 from motchi.body.base_ant import BaseAnt
-from motchi.body.config import AntConfig
+from motchi.body.config import AntConfig, EnvironmentConfig
 from motchi.body.random_ant import RandomAnt
 from motchi.runtime.core_drives import compute_drives
 from motchi.runtime.energy import EnergyState
@@ -47,12 +47,13 @@ class AntArchitectureTest(unittest.TestCase):
         recharge = recharge_perception(
             ant.energy,
             ant.config.energy,
+            ant.config.sensing,
             ant.env.unwrapped.data.qpos,
-            sense_range=ant.config.drives.sense_range,
         )
         food = food_perception(
             ant.hunger,
             ant.config.food,
+            ant.config.sensing,
             ant.foods,
             ant.env.unwrapped.data.qpos,
         )
@@ -71,7 +72,33 @@ class AntArchitectureTest(unittest.TestCase):
 
         self.assertEqual(config["ant_type"], "RandomAnt")
         self.assertEqual(config["inherits"], "BaseAnt")
+        self.assertFalse(config["environment"]["terminate_when_unhealthy"])
+        self.assertEqual(config["sensing"]["detection_threshold"], 0.08)
         self.assertEqual(config["food"]["food_radius"], 0.08)
+
+    def test_hud_lines_include_per_ant_drive_state(self) -> None:
+        ant = RandomAnt(AntConfig(name="HUDTestAnt"))
+        ant.env = _FakeEnv(np.array([0.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0], dtype=np.float64))
+        drives = ant._sense_drives()
+
+        lines = dict(ant._hud_lines(drives, in_recharge_zone=True, spent=0.123, energy_scale=0.75))
+
+        self.assertEqual(lines["Ant"], "HUDTestAnt")
+        self.assertIn("250.0/250.0", lines["Energy"])
+        self.assertIn("0.0/100.0", lines["Hunger"])
+        self.assertIn("scale=", lines["Sensing"])
+        self.assertIn(drives.dominant_drive, lines["Dominant drive"])
+        self.assertIn("0.75", lines["Action scale"])
+
+    def test_reset_reason_mentions_unhealthy_only_when_enabled(self) -> None:
+        default_ant = RandomAnt(AntConfig())
+        self.assertEqual(default_ant._reset_reason(terminated=True, truncated=False, energy_failed=False), "environment terminated")
+
+        unhealthy_ant = RandomAnt(AntConfig(environment=EnvironmentConfig(terminate_when_unhealthy=True)))
+        self.assertEqual(
+            unhealthy_ant._reset_reason(terminated=True, truncated=False, energy_failed=False),
+            "environment terminated, likely unhealthy posture",
+        )
 
 
 if __name__ == "__main__":

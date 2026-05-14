@@ -8,17 +8,21 @@ from __future__ import annotations
 
 import argparse
 
-from motchi.body.config import AntConfig, RunConfig, ViewerConfig
+from motchi.body.config import AntConfig, EnvironmentConfig, RunConfig, ViewerConfig
 from motchi.body.random_ant import RandomAnt
 from motchi.runtime.core_drives import CoreDriveConfig
 from motchi.runtime.energy import EnergyConfig
 from motchi.runtime.food import FoodConfig
+from motchi.runtime.sensing import SensingConfig
 
 
 def build_random_ant_config(args: argparse.Namespace) -> AntConfig:
     return AntConfig(
         name="RandomAnt",
         env_id="Ant-v5",
+        environment=EnvironmentConfig(
+            terminate_when_unhealthy=args.terminate_when_unhealthy,
+        ),
         viewer=ViewerConfig(
             width=args.width,
             height=args.height,
@@ -40,6 +44,13 @@ def build_random_ant_config(args: argparse.Namespace) -> AntConfig:
             recharge_y=args.recharge_y,
             recharge_radius=args.recharge_radius,
             empty_grace_steps=args.empty_grace_steps,
+        ),
+        sensing=SensingConfig(
+            recharge_range=args.sensing_recharge_range,
+            food_range=args.sensing_food_range,
+            detection_threshold=args.sensing_threshold,
+            base_cost=args.sensing_base_cost,
+            object_cost=args.sensing_object_cost,
         ),
         food=FoodConfig(
             hunger_capacity=args.hunger_capacity,
@@ -66,6 +77,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=7, help="Initial environment seed.")
     parser.add_argument("--max-steps", type=int, default=None, help="Optional finite run length.")
     parser.add_argument("--reset-delay", type=float, default=0.0, help="Pause after resets.")
+    parser.add_argument("--terminate-when-unhealthy", action="store_true", help="Let Ant-v5 reset when torso posture is unhealthy.")
     parser.add_argument("--energy-capacity", type=float, default=250.0, help="Maximum energy.")
     parser.add_argument("--base-cost", type=float, default=0.02, help="Energy spent every step.")
     parser.add_argument("--action-cost", type=float, default=0.20, help="Energy spent from action effort.")
@@ -76,6 +88,11 @@ def main() -> None:
     parser.add_argument("--empty-grace-steps", type=int, default=240, help="Steps before empty energy resets the episode.")
     parser.add_argument("--telemetry-interval", type=int, default=120, help="Steps between drive status logs.")
     parser.add_argument("--sense-range", type=float, default=8.0, help="Recharge detection range.")
+    parser.add_argument("--sensing-recharge-range", type=float, default=12.0, help="Recharge active sensing range.")
+    parser.add_argument("--sensing-food-range", type=float, default=10.0, help="Food active sensing range.")
+    parser.add_argument("--sensing-threshold", type=float, default=0.08, help="Minimum signal needed for detection.")
+    parser.add_argument("--sensing-base-cost", type=float, default=0.005, help="Energy cost per sensing pass.")
+    parser.add_argument("--sensing-object-cost", type=float, default=0.001, help="Additional energy cost per sensed object channel.")
     parser.add_argument("--gait-amplitude", type=float, default=0.75, help="Reserved for future drive-consuming ants.")
     parser.add_argument("--wander-strength", type=float, default=0.35, help="Reserved for future drive-consuming ants.")
     parser.add_argument("--seek-strength", type=float, default=0.90, help="Reserved for future drive-consuming ants.")

@@ -38,8 +38,8 @@ class DriveTest(unittest.TestCase):
         high_energy = EnergyState(value=config.energy.capacity)
         low_energy = EnergyState(value=config.energy.capacity * 0.2)
 
-        high = recharge_perception(high_energy, config.energy, qpos, sense_range=config.drives.sense_range)
-        low = recharge_perception(low_energy, config.energy, qpos, sense_range=config.drives.sense_range)
+        high = recharge_perception(high_energy, config.energy, config.sensing, qpos)
+        low = recharge_perception(low_energy, config.energy, config.sensing, qpos)
 
         self.assertLess(compute_drives(high, _no_food(config, qpos)).recharge_drive, compute_drives(low, _no_food(config, qpos)).recharge_drive)
 
@@ -50,10 +50,10 @@ class DriveTest(unittest.TestCase):
         low_hunger = HungerState(value=0.0)
         high_hunger = HungerState(value=config.food.hunger_capacity)
 
-        low = food_perception(low_hunger, config.food, RandomAnt(config).foods, qpos)
-        high = food_perception(high_hunger, config.food, RandomAnt(config).foods, qpos)
+        low = food_perception(low_hunger, config.food, config.sensing, RandomAnt(config).foods, qpos)
+        high = food_perception(high_hunger, config.food, config.sensing, RandomAnt(config).foods, qpos)
 
-        recharge = recharge_perception(EnergyState.full(config.energy), config.energy, qpos, sense_range=config.drives.sense_range)
+        recharge = recharge_perception(EnergyState.full(config.energy), config.energy, config.sensing, qpos)
 
         self.assertLess(compute_drives(recharge, low).food_drive, compute_drives(recharge, high).food_drive)
 
@@ -88,7 +88,7 @@ def _no_food(config: AntConfig, qpos: np.ndarray):
     foods = RandomAnt(config).foods
     for food in foods:
         food.eaten = True
-    return food_perception(HungerState(), config.food, foods, qpos)
+    return food_perception(HungerState(), config.food, config.sensing, foods, qpos)
 
 
 if __name__ == "__main__":
