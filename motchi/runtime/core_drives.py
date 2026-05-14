@@ -39,14 +39,14 @@ def search_drive(perception: RechargePerception) -> float:
 
 
 def food_drive(perception: FoodPerception) -> float:
-    """Food-seeking intensity, proportional to hunger and food signal."""
+    """Energy-pickup seeking intensity, proportional to energy depletion and pickup signal."""
 
-    return float(np.clip(perception.hunger_fraction * perception.signal_strength, 0.0, 1.0))
+    return float(np.clip(perception.signal_strength, 0.0, 1.0))
 
 
 def compute_drives(recharge: RechargePerception, food: FoodPerception) -> DriveSnapshot:
     recharge_intensity = search_drive(recharge)
-    food_intensity = food_drive(food)
+    food_intensity = float(np.clip(recharge.depletion * food_drive(food), 0.0, 1.0))
 
     if food_intensity > recharge_intensity:
         return DriveSnapshot(

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from motchi.runtime.energy import EnergyConfig, EnergyState, distance_to_recharge_xy, is_in_recharge_zone
-from motchi.runtime.food import FoodConfig, FoodItem, HungerState, nearest_available_food
+from motchi.runtime.food import FoodConfig, FoodItem, nearest_available_food
 from motchi.runtime.sensing import SensingConfig, quadratic_detection_strength
 
 
@@ -25,7 +25,6 @@ class RechargePerception:
 
 @dataclass(frozen=True)
 class FoodPerception:
-    hunger_fraction: float
     distance: float
     signal_strength: float
     direction_world: np.ndarray
@@ -91,7 +90,6 @@ def recharge_perception(
 
 
 def food_perception(
-    hunger: HungerState,
     food_config: FoodConfig,
     sensing_config: SensingConfig,
     foods: list[FoodItem],
@@ -103,11 +101,9 @@ def food_perception(
     torso_quat = torso_qpos[3:7]
 
     food_index, distance = nearest_available_food(torso_xy, foods)
-    hunger_fraction = hunger.fraction(food_config)
 
     if food_index is None:
         return FoodPerception(
-            hunger_fraction=hunger_fraction,
             distance=float("inf"),
             signal_strength=0.0,
             direction_world=np.zeros(2, dtype=np.float64),
@@ -127,7 +123,6 @@ def food_perception(
     )
 
     return FoodPerception(
-        hunger_fraction=hunger_fraction,
         distance=distance,
         signal_strength=signal_strength,
         direction_world=direction_world,

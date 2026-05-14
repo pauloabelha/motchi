@@ -11,7 +11,6 @@ from motchi.body.config import AntConfig, EnvironmentConfig
 from motchi.body.random_ant import RandomAnt
 from motchi.runtime.core_drives import compute_drives
 from motchi.runtime.energy import EnergyState
-from motchi.runtime.food import HungerState
 from motchi.runtime.perception import food_perception, recharge_perception
 
 
@@ -51,7 +50,6 @@ class AntArchitectureTest(unittest.TestCase):
             ant.env.unwrapped.data.qpos,
         )
         food = food_perception(
-            ant.hunger,
             ant.config.food,
             ant.config.sensing,
             ant.foods,
@@ -85,7 +83,7 @@ class AntArchitectureTest(unittest.TestCase):
 
         self.assertEqual(lines["Ant"], "HUDTestAnt")
         self.assertIn("250.0/250.0", lines["Energy"])
-        self.assertIn("0.0/100.0", lines["Hunger"])
+        self.assertNotIn("Hunger", lines)
         self.assertIn("scale=", lines["Sensing"])
         self.assertIn(drives.dominant_drive, lines["Dominant drive"])
         self.assertIn("0.75", lines["Action scale"])

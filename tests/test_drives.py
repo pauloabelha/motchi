@@ -11,7 +11,7 @@ from motchi.body.random_ant import RandomAnt
 from motchi.runtime.actions import ActionCommand
 from motchi.runtime.core_drives import compute_drives
 from motchi.runtime.energy import EnergyState, spend_or_recharge
-from motchi.runtime.food import FoodConfig, HungerState, consume_touched_food, reduce_hunger
+from motchi.runtime.food import FoodConfig, consume_touched_food
 from motchi.runtime.perception import food_perception, recharge_perception
 
 
@@ -43,25 +43,20 @@ class DriveTest(unittest.TestCase):
 
         self.assertLess(compute_drives(high, _no_food(config, qpos)).recharge_drive, compute_drives(low, _no_food(config, qpos)).recharge_drive)
 
-    def test_food_drive_increases_with_hunger(self) -> None:
+    def test_pickup_drive_increases_with_energy_depletion(self) -> None:
         config = AntConfig()
         qpos = np.array([0.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0], dtype=np.float64)
 
-        low_hunger = HungerState(value=0.0)
-        high_hunger = HungerState(value=config.food.hunger_capacity)
+        food = food_perception(config.food, config.sensing, RandomAnt(config).foods, qpos)
+        high_energy_recharge = recharge_perception(EnergyState.full(config.energy), config.energy, config.sensing, qpos)
+        low_energy_recharge = recharge_perception(EnergyState(config.energy.capacity * 0.2), config.energy, config.sensing, qpos)
 
-        low = food_perception(low_hunger, config.food, config.sensing, RandomAnt(config).foods, qpos)
-        high = food_perception(high_hunger, config.food, config.sensing, RandomAnt(config).foods, qpos)
+        self.assertLess(compute_drives(high_energy_recharge, food).food_drive, compute_drives(low_energy_recharge, food).food_drive)
 
-        recharge = recharge_perception(EnergyState.full(config.energy), config.energy, config.sensing, qpos)
-
-        self.assertLess(compute_drives(recharge, low).food_drive, compute_drives(recharge, high).food_drive)
-
-    def test_food_consumption_reduces_hunger_and_restores_energy(self) -> None:
+    def test_pickup_consumption_restores_energy(self) -> None:
         ant = RandomAnt(AntConfig())
         ant.env = _FakeEnv(np.array([2.5, 2.0, 0.5, 1.0, 0.0, 0.0, 0.0], dtype=np.float64))
         ant.energy = EnergyState(value=50.0)
-        ant.hunger = HungerState(value=80.0)
 
         command = ActionCommand.from_motor(np.zeros(8, dtype=np.float32))
         executed = ant.motor_actuator.execute(command, ant.energy)
@@ -71,24 +66,21 @@ class DriveTest(unittest.TestCase):
         self.assertFalse(in_zone)
         self.assertGreater(spent, 0.0)
         self.assertTrue(ant.foods[0].eaten)
-        self.assertLess(ant.hunger.value, 80.0)
         self.assertGreater(ant.energy.value, 50.0)
 
-    def test_food_touch_and_hunger_helpers_are_policy_free(self) -> None:
-        config = FoodConfig(food_radius=0.1, food_hunger_value=10.0)
+    def test_food_touch_helper_is_policy_free(self) -> None:
+        config = FoodConfig(food_radius=0.1)
         ant = RandomAnt(AntConfig(food=config))
         consumed = consume_touched_food(np.array([2.5, 2.0], dtype=np.float64), ant.foods, config)
-        hunger = reduce_hunger(HungerState(value=50.0), config)
 
         self.assertEqual(consumed, [0])
-        self.assertEqual(hunger.value, 40.0)
 
 
 def _no_food(config: AntConfig, qpos: np.ndarray):
     foods = RandomAnt(config).foods
     for food in foods:
         food.eaten = True
-    return food_perception(HungerState(), config.food, config.sensing, foods, qpos)
+    return food_perception(config.food, config.sensing, foods, qpos)
 
 
 if __name__ == "__main__":

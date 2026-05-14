@@ -8,13 +8,12 @@ Motchi separates body drives from action policy.
 
 - MuJoCo/Gymnasium environment lifecycle
 - energy state
-- hunger state
-- food items
-- recharge zone
+- energy pickup items
+- recharge zone, placed away from the ant spawn by default
 - perception
 - active sensing cost
 - drive computation
-- food consumption
+- pickup consumption
 - recharge handling
 - reset handling
 - viewer markers
@@ -81,12 +80,11 @@ Even though the action policy is random, the internal body loop still updates:
 
 - energy depletion
 - recharge detection
-- hunger increase
-- food sensing
-- food consumption
+- pickup sensing
+- pickup consumption
 - dominant drive telemetry
 
-That makes RandomAnt a useful baseline body: it has needs, but no intentional behavior.
+That makes RandomAnt a useful baseline body: it has energy needs, but no intentional behavior.
 
 ## MuJoCo HUD
 
@@ -96,10 +94,9 @@ It shows:
 
 - ant name
 - energy value and bar
-- hunger value and bar
 - dominant drive
 - recharge drive and distance
-- food drive, distance, and remaining food count
+- pickup drive, distance, and remaining pickup count
 - sensing scale and sensing energy spent
 - action scale and energy spent on the last executed command
 

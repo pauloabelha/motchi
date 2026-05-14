@@ -53,9 +53,6 @@ def build_random_ant_config(args: argparse.Namespace) -> AntConfig:
             object_cost=args.sensing_object_cost,
         ),
         food=FoodConfig(
-            hunger_capacity=args.hunger_capacity,
-            hunger_rate=args.hunger_rate,
-            food_hunger_value=args.food_hunger_value,
             food_energy_value=args.food_energy_value,
             food_radius=args.food_radius,
             food_sense_range=args.food_sense_range,
@@ -82,9 +79,9 @@ def main() -> None:
     parser.add_argument("--base-cost", type=float, default=0.02, help="Energy spent every step.")
     parser.add_argument("--action-cost", type=float, default=0.20, help="Energy spent from action effort.")
     parser.add_argument("--recharge-rate", type=float, default=4.0, help="Energy restored per step in the recharge zone.")
-    parser.add_argument("--recharge-x", type=float, default=0.0, help="Recharge zone X position.")
+    parser.add_argument("--recharge-x", type=float, default=3.0, help="Recharge zone X position.")
     parser.add_argument("--recharge-y", type=float, default=0.0, help="Recharge zone Y position.")
-    parser.add_argument("--recharge-radius", type=float, default=1.5, help="Recharge zone radius.")
+    parser.add_argument("--recharge-radius", type=float, default=2.0, help="Recharge zone radius.")
     parser.add_argument("--empty-grace-steps", type=int, default=240, help="Steps before empty energy resets the episode.")
     parser.add_argument("--telemetry-interval", type=int, default=120, help="Steps between drive status logs.")
     parser.add_argument("--sense-range", type=float, default=8.0, help="Recharge detection range.")
@@ -99,10 +96,7 @@ def main() -> None:
     parser.add_argument("--food-seek-strength", type=float, default=1.0, help="Reserved for future drive-consuming ants.")
     parser.add_argument("--steering-strength", type=float, default=0.45, help="Reserved for future drive-consuming ants.")
     parser.add_argument("--gait-frequency", type=float, default=0.12, help="Reserved for future drive-consuming ants.")
-    parser.add_argument("--hunger-capacity", type=float, default=100.0, help="Maximum hunger.")
-    parser.add_argument("--hunger-rate", type=float, default=0.06, help="Hunger gained every step.")
-    parser.add_argument("--food-hunger-value", type=float, default=35.0, help="Hunger removed by eating food.")
-    parser.add_argument("--food-energy-value", type=float, default=45.0, help="Energy restored by eating food.")
+    parser.add_argument("--food-energy-value", type=float, default=20.0, help="Energy restored by a small pickup.")
     parser.add_argument("--food-radius", type=float, default=0.08, help="Food touch radius.")
     parser.add_argument("--food-sense-range", type=float, default=8.0, help="Food detection range.")
     parser.add_argument("--width", type=int, default=1280, help="Viewer window width.")

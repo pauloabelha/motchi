@@ -16,11 +16,8 @@ from motchi.runtime.actuators import MotorActuator
 from motchi.runtime.energy import EnergyState, spend_or_recharge
 from motchi.runtime.food import (
     FoodItem,
-    HungerState,
     consume_touched_food,
     default_food_items,
-    increase_hunger,
-    reduce_hunger,
 )
 from motchi.runtime.logging import error, info
 from motchi.runtime.perception import food_perception, recharge_perception
@@ -34,7 +31,6 @@ class BaseAnt(ABC):
         self.config = config
         self.env: gym.Env | None = None
         self.energy = EnergyState.full(config.energy)
-        self.hunger = HungerState()
         self.foods: list[FoodItem] = default_food_items()
         self.motor_actuator = MotorActuator(config.energy, config.actuators)
         self.last_sensing = SensingState(energy_cost=0.0, energy_scale=1.0)
@@ -132,8 +128,7 @@ class BaseAnt(ABC):
             f"radius={self.config.energy.recharge_radius:.1f}"
         )
         info(
-            "Food drive active: "
-            f"hunger_rate={self.config.food.hunger_rate:.3f}, "
+            "Energy pickup active: "
             f"food_energy={self.config.food.food_energy_value:.1f}, "
             f"food_radius={self.config.food.food_radius:.2f}"
         )
@@ -149,7 +144,6 @@ class BaseAnt(ABC):
         observation, info_dict = self._env.reset(seed=seed)
         del observation, info_dict
         self.energy = EnergyState.full(self.config.energy)
-        self.hunger = HungerState()
         self.foods = default_food_items()
         self.was_in_recharge_zone = True
         self._draw_world_markers()
@@ -157,7 +151,6 @@ class BaseAnt(ABC):
         self._add_hud(drives, in_recharge_zone=drives.recharge.inside_zone, spent=0.0, energy_scale=1.0)
         info(f"Episode reset: {reason}")
         info(f"Energy: {self.energy.value:.1f}/{self.config.energy.capacity:.1f}")
-        info(f"Hunger: {self.hunger.value:.1f}/{self.config.food.hunger_capacity:.1f}")
 
     def _reset_reason(self, terminated: bool, truncated: bool, energy_failed: bool) -> str:
         reasons: list[str] = []
@@ -182,7 +175,6 @@ class BaseAnt(ABC):
             sensing_energy_scale=sensing_state.energy_scale,
         )
         food = food_perception(
-            self.hunger,
             self.config.food,
             self.config.sensing,
             self.foods,
@@ -207,7 +199,6 @@ class BaseAnt(ABC):
         return np.asarray(self._env.unwrapped.data.qpos[:2], dtype=np.float64)
 
     def _update_drives_and_world(self, executed_action: ExecutedAction) -> tuple[bool, float]:
-        self.hunger = increase_hunger(self.hunger, self.config.food)
         self.energy, in_recharge_zone, spent = spend_or_recharge(
             self.energy,
             self.config.energy,
@@ -217,7 +208,6 @@ class BaseAnt(ABC):
         )
         consumed_food = consume_touched_food(self._torso_xy(), self.foods, self.config.food)
         for food_index in consumed_food:
-            self.hunger = reduce_hunger(self.hunger, self.config.food)
             self.energy.value = float(
                 np.clip(
                     self.energy.value + self.config.food.food_energy_value,
@@ -226,8 +216,7 @@ class BaseAnt(ABC):
                 )
             )
             info(
-                f"Food consumed ({food_index + 1}): "
-                f"hunger={self.hunger.value:.1f}/{self.config.food.hunger_capacity:.1f}, "
+                f"Energy pickup consumed ({food_index + 1}): "
                 f"energy={self.energy.value:.1f}/{self.config.energy.capacity:.1f}"
             )
 
@@ -248,18 +237,16 @@ class BaseAnt(ABC):
         in_recharge_zone: bool,
         spent: float,
         energy_scale: float,
-    ) -> list[tuple[str, str]]:
+        ) -> list[tuple[str, str]]:
         energy_fraction = self.energy.fraction(self.config.energy)
-        hunger_fraction = self.hunger.fraction(self.config.food)
         food_left = sum(1 for food in self.foods if not food.eaten)
 
         return [
             ("Ant", self.config.name),
             ("Energy", f"{self._status_bar(energy_fraction)} {self.energy.value:.1f}/{self.config.energy.capacity:.1f}"),
-            ("Hunger", f"{self._status_bar(hunger_fraction)} {self.hunger.value:.1f}/{self.config.food.hunger_capacity:.1f}"),
             ("Dominant drive", f"{drives.dominant_drive} ({drives.dominant_intensity:.2f})"),
             ("Recharge drive", f"{drives.recharge_drive:.2f} dist={drives.recharge.distance:.2f} in_zone={in_recharge_zone}"),
-            ("Food drive", f"{drives.food_drive:.2f} dist={drives.food.distance:.2f} left={food_left}"),
+            ("Pickup drive", f"{drives.food_drive:.2f} dist={drives.food.distance:.2f} left={food_left}"),
             ("Sensing", f"scale={self.last_sensing.energy_scale:.2f} spent={self.last_sensing.energy_cost:.3f}"),
             ("Action scale", f"{energy_scale:.2f} spent={spent:.3f}"),
         ]
@@ -344,10 +331,9 @@ class BaseAnt(ABC):
                 f"action_scale={energy_scale:.2f}, "
                 f"sensing_spent={self.last_sensing.energy_cost:.3f}, "
                 f"sensing_scale={self.last_sensing.energy_scale:.2f}, "
-                f"hunger={self.hunger.value:.1f}/{self.config.food.hunger_capacity:.1f}, "
                 f"in_recharge_zone={in_recharge_zone}, "
                 f"recharge_drive={drives.recharge_drive:.2f}, "
-                f"food_drive={drives.food_drive:.2f}, "
+                f"pickup_drive={drives.food_drive:.2f}, "
                 f"dominant_drive={drives.dominant_drive}, "
                 f"ant={self.config.name}, "
                 f"recharge_distance={drives.recharge.distance:.2f}, "

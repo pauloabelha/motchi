@@ -22,9 +22,9 @@
     "base_cost": 0.02,
     "action_cost": 0.2,
     "recharge_rate": 4.0,
-    "recharge_x": 0.0,
+    "recharge_x": 3.0,
     "recharge_y": 0.0,
-    "recharge_radius": 1.5,
+    "recharge_radius": 2.0,
     "empty_grace_steps": 240
   },
   "actuators": {
@@ -47,10 +47,7 @@
     "object_cost": 0.001
   },
   "food": {
-    "hunger_capacity": 100.0,
-    "hunger_rate": 0.06,
-    "food_hunger_value": 35.0,
-    "food_energy_value": 45.0,
+    "food_energy_value": 20.0,
     "food_radius": 0.08,
     "food_sense_range": 8.0
   },

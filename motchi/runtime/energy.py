@@ -13,9 +13,9 @@ class EnergyConfig:
     base_cost: float = 0.02
     action_cost: float = 0.20
     recharge_rate: float = 4.0
-    recharge_x: float = 0.0
+    recharge_x: float = 3.0
     recharge_y: float = 0.0
-    recharge_radius: float = 1.5
+    recharge_radius: float = 2.0
     empty_grace_steps: int = 240
 
 

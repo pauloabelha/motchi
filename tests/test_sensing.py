@@ -27,7 +27,7 @@ class SensingTest(unittest.TestCase):
 
     def test_recharge_perception_can_be_undetected_but_still_inside_zone(self) -> None:
         config = AntConfig()
-        qpos = np.array([0.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+        qpos = np.array([3.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0], dtype=np.float64)
 
         perception = recharge_perception(
             EnergyState.full(config.energy),
@@ -44,7 +44,7 @@ class SensingTest(unittest.TestCase):
     def test_food_perception_uses_thresholded_sensing(self) -> None:
         config = AntConfig()
         qpos = np.array([100.0, 100.0, 0.5, 1.0, 0.0, 0.0, 0.0], dtype=np.float64)
-        perception = food_perception(RandomAnt(config).hunger, config.food, config.sensing, RandomAnt(config).foods, qpos)
+        perception = food_perception(config.food, config.sensing, RandomAnt(config).foods, qpos)
 
         self.assertFalse(perception.visible)
         self.assertEqual(perception.signal_strength, 0.0)

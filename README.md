@@ -79,7 +79,7 @@ Gymnasium Ant-v5 currently reports a `(105,)` observation vector by default. The
 `test_ant.py` now includes a simple organism-style energy loop:
 
 - each action spends energy
-- a green circular recharge zone is drawn on the floor
+- a large green circular recharge zone is drawn on the floor away from the spawn point
 - the ant recharges while its torso is inside that zone
 - if energy reaches zero, motor commands are gated to zero
 - if energy remains empty for too long, the episode resets
@@ -130,19 +130,18 @@ python test_ant.py \
 Move the recharge zone:
 
 ```bash
-python test_ant.py --recharge-x 2.0 --recharge-y 0.0 --recharge-radius 1.0
+python test_ant.py --recharge-x 4.0 --recharge-y 0.0 --recharge-radius 2.0
 ```
 
 RandomAnt always uses random motor actions. Motchi still updates drives:
 
 - energy is spent or recharged
 - sensing spends energy before perception
-- hunger rises
-- food is consumed if touched
-- recharge and food drive intensities are computed
+- energy pickups are consumed if touched
+- recharge and pickup drive intensities are computed
 - telemetry reports the dominant drive
 - action commands are smoothly scaled by available energy
-- the MuJoCo window shows a top-right HUD with energy, hunger, drives, and action scale
+- the MuJoCo window shows a top-right HUD with energy, drives, sensing, and action scale
 
 The ant class decides whether drives influence motor actions. `RandomAnt` ignores them. Future ants can inherit from `BaseAnt` and use the same drives differently.
 
@@ -170,14 +169,14 @@ The drive layer exposes intentionally simple internal signals:
 ```text
 depletion = 1 - energy_fraction
 search_drive = depletion * recharge_signal_strength
-hunger_drive = hunger_fraction * food_signal_strength
+pickup_drive = depletion * pickup_signal_strength
 ```
 
-For `RandomAnt`, these signals are observed and logged but do not bias movement. Food and recharge can still be fulfilled randomly if the ant happens to reach them. This is not reinforcement learning; it is the first separation between body drives and action policy.
+For `RandomAnt`, these signals are observed and logged but do not bias movement. Pickups and recharge can still be fulfilled randomly if the ant happens to reach them. This is not reinforcement learning; it is the first separation between body drives and action policy.
 
 Action policies return `ActionCommand` objects rather than raw arrays. A command contains proposed motor output, but not energy cost. Energy cost belongs to the body actuator: `BaseAnt` owns a `MotorActuator`, and the actuator computes spending from the motor command. Its low-level motor units each have an `energy_multiplier`, so a more efficient leg or joint spends less energy for the same command. Low energy produces weak executed actions, and zero energy produces no executed action.
 
-Sensing is also energy-bound. Before drives are computed, `BaseAnt` spends a small sensing cost. Recharge and food detection use a quadratic distance falloff:
+Sensing is also energy-bound. Before drives are computed, `BaseAnt` spends a small sensing cost. Recharge and pickup detection use a quadratic distance falloff:
 
 ```text
 signal = 1 - (distance / range)^2
@@ -196,31 +195,26 @@ python test_ant.py \
   --sensing-object-cost 0.002
 ```
 
-Food appears as small green spheres, about a tenth of the ant's body scale. When the ant torso touches one:
+Energy pickups appear as small green spheres, about a tenth of the ant's body scale. They restore less energy than standing in the green recharge area. When the ant torso touches one:
 
-- the food is marked eaten and no longer renders
-- hunger is reduced
+- the pickup is marked consumed and no longer renders
 - energy is restored
 
-Run a food-heavy demo:
+Run a pickup-heavy demo:
 
 ```bash
 python test_ant.py \
-  --hunger-rate 1.0 \
   --food-radius 1.0 \
-  --food-hunger-value 50 \
-  --food-energy-value 30
+  --food-energy-value 20
 ```
 
-Run a quick verification where food is intentionally easy to touch:
+Run a quick verification where pickups are intentionally easy to touch:
 
 ```bash
 python test_ant.py \
   --max-steps 220 \
   --food-radius 3.0 \
-  --hunger-rate 1.0 \
-  --food-hunger-value 50 \
-  --food-energy-value 30
+  --food-energy-value 20
 ```
 
 ## Project Layout
@@ -259,9 +253,9 @@ The tests cover:
 - random action shape/bounds
 - config file inheritance declaration
 - recharge drive increasing with energy depletion
-- food drive increasing with hunger
-- food consumption reducing hunger and restoring energy
-- MuJoCo HUD lines for per-ant energy/hunger/drive state
+- pickup drive increasing with energy depletion
+- pickup consumption restoring energy
+- MuJoCo HUD lines for per-ant energy/drive state
 - unhealthy Ant-v5 termination disabled by default
 - reset reason reporting
 - active sensing energy cost
